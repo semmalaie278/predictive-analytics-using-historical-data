@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Predictive Analytics Dashboard — Upload historical CSV data, auto-clean, explore with EDA, train ML and ARIMA models, and forecast future trends with downloadable results." />
+  <title>Predictive Analytics Dashboard</title>
+
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Plotly.js CDN -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" defer></script>
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────── -->
+<nav class="navbar" role="navigation" aria-label="Main navigation">
+  <a href="/" class="navbar-brand" aria-label="Predictive Analytics Home">
+    <div class="logo-icon" aria-hidden="true">📊</div>
+    <span>PredictIQ</span>
+  </a>
+  <span class="navbar-badge">ML Dashboard</span>
+</nav>
+
+<!-- ── Toast Container ────────────────────────────────────── -->
+<div id="toast-container" role="alert" aria-live="polite"></div>
+
+<!-- ── Main Content ───────────────────────────────────────── -->
+<main class="main-container" role="main">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-eyebrow">
+      <span>⚡</span> AI-Powered Analytics
+    </div>
+    <h1>Predictive Analytics<br/>Using Historical Data</h1>
+    <p>Upload any CSV dataset, auto-clean it, explore patterns with EDA, and train
+       machine learning or ARIMA models to forecast the future — all in one place.</p>
+  </section>
+
+  <!-- Step Progress Indicator -->
+  <div id="step-progress" class="step-progress" role="tablist" aria-label="Wizard steps"></div>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- STEP 0 — Upload                                       -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <section class="section-panel active" id="panel-0" aria-labelledby="step-upload-title">
+
+    <div class="glass-card">
+      <div class="card-title">
+        <span class="icon">📂</span>
+        <h2 id="step-upload-title">Upload Your Dataset</h2>
+      </div>
+
+      <!-- Drag & Drop Zone -->
+      <div id="upload-zone" class="upload-zone" role="button" tabindex="0"
+           aria-label="Click or drag a CSV file here to upload"
+           onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('file-input').click()">
+        <span class="upload-icon" aria-hidden="true">📤</span>
+        <h3>Drag & Drop your CSV file here</h3>
+        <p>or click to browse from your computer</p>
+        <button class="btn btn-primary" type="button" onclick="document.getElementById('file-input').click()">
+          Browse File
+        </button>
+        <p style="margin-top:0.8rem;font-size:0.75rem;color:var(--text-muted)">
+          Supports CSV files up to 50 MB
+        </p>
+      </div>
+      <input type="file" id="file-input" accept=".csv" aria-label="File input" />
+
+      <!-- Loading overlay for upload -->
+      <div id="upload-loading" class="loading-overlay hidden" role="status" aria-live="polite">
+        <div class="loading-overlay-inner">
+          <div class="spinner"></div>
+          <span>Reading file…</span>
+        </div>
+      </div>
+
+      <!-- Upload success info (hidden until file is loaded) -->
+      <div id="upload-success" class="hidden" style="margin-top:1.5rem">
+        <div class="stat-strip">
+          <div class="stat-chip">
+            <div class="stat-chip-value" id="upload-rows">—</div>
+            <div class="stat-chip-label">Rows</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-chip-value" id="upload-cols">—</div>
+            <div class="stat-chip-label">Columns</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-chip-value" style="font-size:1rem;word-break:break-all" id="upload-filename">—</div>
+            <div class="stat-chip-label">File</div>
+          </div>
+        </div>
+
+        <h3 style="font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.75rem">
+          Raw Data Preview (first 5 rows)
+        </h3>
+        <div class="table-wrapper" style="margin-bottom:1.5rem">
+          <table id="upload-preview-table" aria-label="Raw data preview">
+            <thead></thead><tbody></tbody>
+          </table>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="btn-proceed-preprocess"
+                  onclick="proceedToPreprocess()">
+            🧹 Proceed to Preprocess →
+          </button>
+          <button class="btn btn-secondary" onclick="resetUpload()">
+            🔄 Upload Different File
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sample Datasets -->
+    <div class="glass-card" style="margin-top:1.5rem">
+      <div class="card-title">
+        <span class="icon">🗄️</span>
+        <h2>Or Try a Sample Dataset</h2>
+      </div>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:0">
+        No data? Start instantly with one of our bundled demo datasets.
+      </p>
+      <div id="sample-grid" class="sample-grid">
+        <div style="color:var(--text-muted);font-size:0.85rem;padding:1rem">Loading samples…</div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- STEP 1 — Preprocess                                   -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <section class="section-panel" id="panel-1" aria-labelledby="step-preprocess-title">
+
+    <div class="glass-card">
+      <div class="card-title">
+        <span class="icon">🧹</span>
+        <h2 id="step-preprocess-title">Data Preprocessing</h2>
+      </div>
+
+      <div class="info-box">
+        <span class="info-icon">ℹ️</span>
+        <span>The preprocessor will handle missing values, remove duplicates, parse date columns,
+              and convert mixed-type columns — automatically.</span>
+      </div>
+
+      <div class="action-row" style="margin-top:0">
+        <button class="btn btn-primary" id="btn-preprocess" onclick="runPreprocess()">
+          🧹 Clean & Preprocess Data
+        </button>
+        <button class="btn btn-secondary" onclick="goToStep(0)">← Back</button>
+      </div>
+
+      <div id="preprocess-loading" class="loading-overlay hidden" style="position:relative;margin-top:1rem;height:80px;border-radius:var(--radius-md)">
+        <div class="loading-overlay-inner">
+          <div class="spinner"></div>
+          <span>Cleaning data…</span>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="preprocess-results" class="hidden" style="margin-top:1.5rem">
+        <h3 style="font-size:0.95rem;font-weight:700;margin-bottom:0.9rem;color:var(--text-secondary)">
+          Cleaning Report
+        </h3>
+        <div class="stat-strip">
+          <div class="stat-chip">
+            <div class="stat-chip-value" id="stat-original-shape">—</div>
+            <div class="stat-chip-label">Original Shape</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-chip-value" id="stat-cleaned-shape">—</div>
+            <div class="stat-chip-label">Cleaned Shape</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-chip-value" id="stat-duplicates">—</div>
+            <div class="stat-chip-label">Duplicates Removed</div>
+          </div>
+          <div class="stat-chip">
+            <div class="stat-chip-value" id="stat-date-cols">—</div>
+            <div class="stat-chip-label">Date Columns</div>
+          </div>
+        </div>
+
+        <div class="info-box" style="margin-bottom:1.25rem">
+          <span class="info-icon">📋</span>
+          <span id="null-info">—</span>
+        </div>
+
+        <h3 style="font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.75rem">
+          Cleaned Data Preview (first 10 rows)
+        </h3>
+        <div class="table-wrapper" style="margin-bottom:1.5rem">
+          <table id="preprocess-preview-table" aria-label="Cleaned data preview">
+            <thead></thead><tbody></tbody>
+          </table>
+        </div>
+
+        <div id="btn-next-eda" class="hidden action-row">
+          <button class="btn btn-primary" onclick="proceedToEDA()">
+            📊 Proceed to EDA →
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- STEP 2 — EDA                                          -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <section class="section-panel" id="panel-2" aria-labelledby="step-eda-title">
+
+    <div class="glass-card">
+      <div class="card-title">
+        <span class="icon">📊</span>
+        <h2 id="step-eda-title">Exploratory Data Analysis</h2>
+      </div>
+
+      <div id="eda-loading" class="loading-overlay hidden" style="position:relative;height:100px;border-radius:var(--radius-md);margin-bottom:1rem">
+        <div class="loading-overlay-inner">
+          <div class="spinner"></div>
+          <span>Running EDA…</span>
+        </div>
+      </div>
+
+      <div id="eda-content" class="hidden">
+
+        <!-- Model recommendation -->
+        <div style="margin-bottom:1.5rem">
+          <p style="font-size:0.82rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-secondary);margin-bottom:0.5rem">
+            Recommended Model
+          </p>
+          <div id="model-badge"></div>
+          <p id="model-reason" style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.6rem"></p>
+        </div>
+
+        <!-- Historical Overview Chart -->
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.75rem">Historical Overview</h3>
+        <div class="chart-container" id="chart-overview" style="min-height:300px"></div>
+
+        <!-- Correlation Heatmap -->
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin:1.5rem 0 0.75rem">Correlation Heatmap</h3>
+        <div class="chart-container" id="chart-heatmap" style="min-height:300px"></div>
+
+        <!-- Summary Statistics -->
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin:1.5rem 0 0.75rem">Summary Statistics</h3>
+        <div class="table-wrapper" style="margin-bottom:1.5rem">
+          <table aria-label="Summary statistics">
+            <thead>
+              <tr>
+                <th>Column</th><th>Count</th><th>Mean</th><th>Std</th>
+                <th>Min</th><th>25%</th><th>50%</th><th>75%</th><th>Max</th>
+              </tr>
+            </thead>
+            <tbody id="stats-table-body"></tbody>
+          </table>
+        </div>
+
+        <!-- Distribution Charts -->
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.75rem">Feature Distributions</h3>
+        <div id="dist-charts-grid" class="charts-grid"></div>
+
+        <div class="action-row" style="margin-top:2rem">
+          <button class="btn btn-primary" onclick="proceedToTrain()">
+            🧠 Proceed to Train Model →
+          </button>
+          <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- STEP 3 — Train                                        -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <section class="section-panel" id="panel-3" aria-labelledby="step-train-title">
+
+    <div class="glass-card">
+      <div class="card-title">
+        <span class="icon">🧠</span>
+        <h2 id="step-train-title">Model Training & Evaluation</h2>
+      </div>
+
+      <!-- Column overrides -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="target-col-select">Target Column</label>
+          <select class="form-control" id="target-col-select" aria-label="Target column selector">
+            <option value="">Auto-detect</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" for="model-type-select">Model Override</label>
+          <select class="form-control" id="model-type-select" aria-label="Model type override">
+            <option value="">Auto-detect</option>
+            <option value="regression">Linear Regression</option>
+            <option value="timeseries">ARIMA (Time-Series)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="btn-train" onclick="runTrain()">
+          🧠 Train Model
+        </button>
+        <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+      </div>
+
+      <div id="train-loading" class="loading-overlay hidden" style="position:relative;height:100px;border-radius:var(--radius-md);margin-top:1rem">
+        <div class="loading-overlay-inner">
+          <div class="spinner"></div>
+          <span>Training model… this may take a moment.</span>
+        </div>
+      </div>
+
+      <!-- Train Results -->
+      <div id="train-results" class="hidden" style="margin-top:1.5rem">
+
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap">
+          <p style="font-size:0.82rem;color:var(--text-secondary);font-weight:600">Trained Model:</p>
+          <span id="trained-model-type" class="tag tag-purple">—</span>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">MAE</div>
+            <div class="metric-value" id="metric-mae">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">MSE</div>
+            <div class="metric-value" id="metric-mse">—</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">RMSE</div>
+            <div class="metric-value" id="metric-rmse">—</div>
+          </div>
+          <div class="metric-card" id="r2-card">
+            <div class="metric-label">R² Score</div>
+            <div class="metric-value" id="metric-r2">—</div>
+          </div>
+        </div>
+
+        <!-- Actual vs Predicted Chart -->
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin:1.25rem 0 0.75rem">
+          Actual vs Predicted
+        </h3>
+        <div class="chart-container" id="chart-actual-vs-pred" style="min-height:320px"></div>
+
+        <!-- Feature Importance (regression only) -->
+        <div id="feature-importance-section" class="hidden" style="margin-top:1.5rem">
+          <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.75rem">
+            Feature Coefficients (Importance)
+          </h3>
+          <div class="table-wrapper">
+            <table aria-label="Feature importance">
+              <thead>
+                <tr><th>Feature</th><th>Coefficient</th><th>Relative Importance</th></tr>
+              </thead>
+              <tbody id="importance-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="action-row" style="margin-top:1.5rem">
+          <button class="btn btn-primary" onclick="proceedToForecast()">
+            🔮 Proceed to Forecast →
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- STEP 4 — Forecast                                     -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <section class="section-panel" id="panel-4" aria-labelledby="step-forecast-title">
+
+    <div class="glass-card">
+      <div class="card-title">
+        <span class="icon">🔮</span>
+        <h2 id="step-forecast-title">Future Trend Forecast</h2>
+      </div>
+
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.5rem">
+        Specify how many future periods to predict. The model will extrapolate
+        from learned patterns and display a forecast with confidence bounds.
+      </p>
+
+      <!-- Period Slider -->
+      <label class="form-label" for="period-slider">Number of Future Periods</label>
+      <div class="period-input-row">
+        <div class="period-display" id="period-display" aria-live="polite">10</div>
+        <input type="range" id="period-slider" min="1" max="100" value="10"
+               aria-label="Number of forecast periods" aria-valuenow="10" />
+        <span style="color:var(--text-secondary);font-size:0.85rem">periods</span>
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-primary" id="btn-forecast" onclick="runForecast()">
+          🔮 Generate Forecast
+        </button>
+        <button class="btn btn-secondary" onclick="goToStep(3)">← Back</button>
+      </div>
+
+      <div id="forecast-loading" class="loading-overlay hidden" style="position:relative;height:100px;border-radius:var(--radius-md);margin-top:1rem">
+        <div class="loading-overlay-inner">
+          <div class="spinner"></div>
+          <span>Generating forecast…</span>
+        </div>
+      </div>
+
+      <!-- Forecast Results -->
+      <div id="forecast-results" class="hidden" style="margin-top:1.5rem">
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin-bottom:0.75rem">
+          Forecast Chart
+        </h3>
+        <div class="chart-container" id="chart-forecast" style="min-height:360px"></div>
+
+        <h3 style="font-size:0.9rem;font-weight:700;color:var(--text-secondary);margin:1.25rem 0 0.75rem">
+          Forecast Table (first 10 periods)
+        </h3>
+        <div class="table-wrapper" style="margin-bottom:1.5rem">
+          <table aria-label="Forecast results table">
+            <thead>
+              <tr><th>Period</th><th>Predicted Value</th></tr>
+            </thead>
+            <tbody id="forecast-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-success" id="btn-download-csv" onclick="">
+            ⬇️ Download Predictions CSV
+          </button>
+          <button class="btn btn-primary" onclick="proceedToDownload()">
+            📥 Go to Download →
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════════════════════════════════ -->
+  <!-- STEP 5 — Download                                     -->
+  <!-- ══════════════════════════════════════════════════════ -->
+  <section class="section-panel" id="panel-5" aria-labelledby="step-download-title">
+
+    <div class="glass-card" style="text-align:center;padding:3rem 2rem">
+      <div style="font-size:4rem;margin-bottom:1rem" aria-hidden="true">🎉</div>
+      <h2 id="step-download-title" style="font-size:1.8rem;font-weight:800;margin-bottom:0.75rem">
+        Your Forecast is Ready!
+      </h2>
+      <p style="color:var(--text-secondary);margin-bottom:0.5rem">
+        Forecast for <strong id="dl-n-periods">—</strong> periods has been generated.
+      </p>
+      <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:2rem">
+        File: <code id="dl-token" style="color:var(--accent-light)">—</code>
+      </p>
+
+      <div style="display:flex;justify-content:center;gap:1rem;flex-wrap:wrap">
+        <button class="btn btn-success" style="font-size:1rem;padding:0.85rem 2rem"
+                onclick="document.getElementById('btn-download-csv').click()">
+          ⬇️ Download Predictions CSV
+        </button>
+        <button class="btn btn-secondary" style="font-size:1rem;padding:0.85rem 2rem"
+                onclick="goToStep(4)">
+          🔮 Adjust Forecast
+        </button>
+        <button class="btn btn-secondary" style="font-size:1rem;padding:0.85rem 2rem"
+                onclick="goToStep(0);resetUpload()">
+          🔄 Start New Analysis
+        </button>
+      </div>
+    </div>
+
+    <!-- Feature Summary Cards -->
+    <div class="charts-grid" style="margin-top:1.5rem">
+      <div class="glass-card">
+        <div class="card-title"><span class="icon">🧹</span><span>Auto Preprocessing</span></div>
+        <p style="color:var(--text-secondary);font-size:0.88rem">
+          Handles missing values, duplicates, date parsing, and type conversion automatically.
+        </p>
+      </div>
+      <div class="glass-card">
+        <div class="card-title"><span class="icon">📊</span><span>EDA & Visualization</span></div>
+        <p style="color:var(--text-secondary);font-size:0.88rem">
+          Interactive Plotly charts: distributions, correlations, and historical trends.
+        </p>
+      </div>
+      <div class="glass-card">
+        <div class="card-title"><span class="icon">🤖</span><span>Smart Model Selection</span></div>
+        <p style="color:var(--text-secondary);font-size:0.88rem">
+          Automatically picks Linear Regression or ARIMA based on your data's structure.
+        </p>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- ── App Script ──────────────────────────────────────────── -->
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+</body>
+</html>
