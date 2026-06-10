@@ -332,5 +332,5 @@ def get_columns():
 # ═════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    print("🚀  Predictive Analytics Dashboard running at http://localhost:5000")
+    print("* Predictive Analytics Dashboard running at http://localhost:5000")
     app.run(debug=True, port=5000)
